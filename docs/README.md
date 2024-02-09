@@ -27,7 +27,7 @@ to other terminal editors such as
 Set up your visual debugger and version control, then submit to the autograder.
 
 ### Visual debugger
-During setup, name your project `p4-editor`. Use this starter files link: `https://eecs280staff.github.io/p4-editor/starter-files.tar.gz`
+During setup, name your project `p4-editor`. Use this starter files link: `https://github.com/saquibrazak/p4-public/blob/main/p4-editor.tar.gz`
 
 | [VS Code](https://eecs280staff.github.io/tutorials/setup_vscode.html)| [Visual Studio](https://eecs280staff.github.io/tutorials/setup_visualstudio.html) | [Xcode](https://eecs280staff.github.io/tutorials/setup_xcode.html) |
 
