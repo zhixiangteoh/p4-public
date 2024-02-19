@@ -44,11 +44,10 @@ void render_buf(Editor &editor, WINDOW *window) {
   wmove(window, 0, 0);
   werase(window);
 
-  int cursor = 0;
-  pair<string, int> data = editor.stringify();
-  cursor = data.second;
-  for (int i = 0; i < static_cast<int>(data.first.size()); ++i) {
-    char c = data.first[i];
+  std::string data = editor.stringify();
+  int cursor = editor.get_index();
+  for (int i = 0; i < static_cast<int>(data.size()); ++i) {
+    char c = data[i];
     // The display character is either ' ' (if it's a newline) or the char
     // The display character is what gets highlighted if we're at the point
     int display = c == '\n' ? ' ' : c;
@@ -87,7 +86,7 @@ void render_buf(Editor &editor, WINDOW *window) {
   }
 
   // We're at the end of the buffer. This only matters if end = cursor
-  if (cursor == -1) {
+  if (editor.is_at_end()) {
     waddch(window,' '|A_STANDOUT);
   }
 }

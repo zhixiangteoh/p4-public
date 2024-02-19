@@ -99,23 +99,36 @@ public:
   //          cursor.
   int get_column() const;
 
-  //EFFECTS:  Returns the contents of the text buffer as a string, as
-  //          well as the position within the string of the character
-  //          at the current cursor. If the cursor is at the end of
-  //          the buffer, returns -1 as the position.
-  std::pair<std::string, int> stringify() const;
+  //EFFECTS:  Returns the index of the character at the current cursor
+  //          with respect to the entire contents. If the cursor is at
+  //          the end of the buffer, returns size() as the index.
+  //HINT: Traversing a list is really slow. Instead, use the index
+  //      private member variable to keep track of the index and
+  //      update it as necessary.
+  int get_index() const;
+
+  //EFFECTS:  Returns the number of characters in the buffer.
+  int size() const;
+
+  //EFFECTS:  Returns the contents of the text buffer as a string.
+  std::string stringify() const;
 
 private:
   TextBuffer buffer;       // linked list that contains the characters
   Iterator cursor;         // current position within the list
   int row;                 // current row
   int column;              // current column
+  int index;               // current index
   Iterator start_sentinel; // sentinel node at the start of the list
   Iterator end_sentinel;   // sentinel node at the end of the list
   //INVARIANT: cursor points at an actual character in the text, or to
   //           the end sentinel
   //INVARIANT: row and column are the row and column numbers of the
   //           character the cursor is pointing at
+  //INVARIANT: index is the index within the buffer of the character
+  //           the cursor is pointing at with respect to the entire
+  //           contents, or size() if the cursor is at the end of
+  //           the buffer; 0 <= index <= size()
 
   //EFFECTS: Computes the column of the cursor within the current
   //         row.

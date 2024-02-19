@@ -194,42 +194,46 @@ private:
       }
     }
 
-    // Compute the new view column based on the cursor.
-    // REQUIRES: index is the index in data of the first character in
-    //           the current row
-    void recompute_view_column(FemtoEditor &femto,
-                               const std::string &data, int index) {
-      if (editor.get_row() != view_row
-          || editor.get_column() < view_column) {
-        view_row = editor.get_row();
+    // Compute the new view column based on the cursor and move the
+    // editor to that position.
+    // REQUIRES: femto.editor.get_row() == cursor_row
+    void recompute_view_column(FemtoEditor &femto, int cursor_row,
+                               int cursor_column) {
+      if (cursor_row != view_row || cursor_column < view_column) {
+        view_row = cursor_row;
         view_column = 0; // recompute from the left
       }
+      editor.move_to_column(view_column);
       std::string &prefix = get_prefix();
       int window_width = getmaxx(window) - prefix.size() - 1;
       // column in the window where current character will be written
       int window_column = (view_column != 0 ? 1 : 0);
-      for (int text_column = view_column;
-           text_column <= editor.get_column()
-             // handle end of buffer
-             && index + text_column < static_cast<int>(data.size());
-           ++text_column) {
-        int i = index + text_column;
-        window_column += femto.display_width(window_column, data[i]);
-        if (window_column > window_width && data[i] != '\n') {
+      for (; editor.get_column() <= cursor_column
+             && !editor.is_at_end() // handle end of buffer
+             && editor.get_row() == cursor_row; // handle end of row
+           editor.forward()) {
+        char c = editor.data_at_cursor();
+        window_column += femto.display_width(window_column, c);
+        if (window_column > window_width && c != '\n') {
           // slide view column to the right
           window_width = getmaxx(window) - prefix.size() -  1;
-          int remaining = // assume aligned + right overflow marker
-            window_width - femto.display_width(0, data[i]) - 1;
-          // max of 4 chars to the left of current
-          for (; i > index + text_column - 4
-                 && remaining - femto.display_width(0, data[i-1]) >= 0;
-               --i, remaining -= femto.display_width(0, data[i-1]));
-          text_column = view_column = i - index;
+          int remaining = window_width - 1; //right overflow marker
+          // max of current char + 4 chars to the left of current
+          for (int i = 0, ichar = editor.data_at_cursor();
+               i < 5 && remaining - femto.display_width(0, ichar) >= 0;
+               remaining -= femto.display_width(0, ichar), ++i,
+                 editor.backward(), ichar = editor.data_at_cursor());
+          editor.forward(); // we went back too far by one character
+          view_column = editor.get_column();
           // set window column after current character
           window_column =
-            1 + femto.display_width(1, data[index + view_column]);
+            1 + femto.display_width(1, editor.data_at_cursor());
         }
       }
+      if (editor.get_row() != cursor_row) { // we moved to the next row
+        editor.up();
+      }
+      editor.move_to_column(view_column);
     }
   };
 
@@ -424,7 +428,7 @@ private:
     minibuffer.set_prefix("Goto line (^N to cancel): ", "Goto: ");
     clear_line(minibuffer);
     get_minibuffer_input('0', '9');
-    std::string input = minibuffer.editor.stringify().first;
+    std::string input = minibuffer.editor.stringify();
     if (!input.empty()) {
       try {
         int target = std::stoi(input);
@@ -483,36 +487,66 @@ private:
       set_message("Canceled", "Canceled");
       return;
     }
-    std::string search = minibuffer.editor.stringify().first;
+    std::string search = minibuffer.editor.stringify();
     if (search.empty() && previous_search.empty()) {
       set_message("Canceled", "Canceled");
       return;
     } else if (search.empty()) {
       search = previous_search;
     }
-
-    auto [data, position] = editbuffer.editor.stringify();
-    auto where =
-      data.find(search, position == -1 ? data.size() : position + 1);
-    if (where == std::string::npos) {
-      // not found in remaining buffer
-      where = data.find(search);
-      if (where != std::string::npos) {
-        // wrap to start
-        position = 0;
-        goto_line(1);
-        set_message("Search wrapped", "Search wrapped");
-      }
-    }
-    if (where != std::string::npos) {
-      for (std::size_t i = 0; i < where - position; ++i) {
-        editbuffer.editor.forward();
-      }
-    } else {
-      set_message("\"" + shorten_string(search) + "\" not found",
-                  "Not found");
-    }
     previous_search = search;
+
+    // save old position, in case the string is not found
+    int old_row = editbuffer.editor.get_row();
+    int old_column = editbuffer.editor.get_column();
+    editbuffer.editor.forward(); // skip current char
+    if (!find_helper(editbuffer.editor, search)) {
+      // try again from beginning
+      goto_line(1);
+      if (!find_helper(editbuffer.editor, search, old_row,
+                       old_column + 1)) {
+        set_message("\"" + shorten_string(search) + "\" not found",
+                    "Not found");
+        // restore old position
+        goto_line(old_row);
+        editbuffer.editor.move_to_column(old_column);
+        return;
+      }
+    }
+    // found string, need to move backwards to its beginning
+    for (std::size_t i = 1; i < search.size();
+         ++i, editbuffer.editor.backward());
+    if (editbuffer.editor.get_row() < old_row
+        || (editbuffer.editor.get_row() == old_row
+            && editbuffer.editor.get_column() <= old_column)) {
+      set_message("Search wrapped", "Search wrapped");
+    } else {
+      set_message("", "");
+    }
+  }
+
+  // Search the given buffer for the string. If max_row and max_column
+  // are provided, the search ends upon exceeding that position by the
+  // size of the search string.
+  bool find_helper(Editor &editor, const std::string &search,
+                   int max_row = -1, int max_column = -1) {
+    int value_index = 0;
+    for (; !editor.is_at_end()
+           && (value_index != 0 // in the middle of matching
+               || max_row == -1 || editor.get_row() < max_row
+               || (editor.get_row() == max_row
+                   && editor.get_column() < max_column));
+         editor.forward()) {
+      if (search[value_index] == editor.data_at_cursor()) {
+        ++value_index;
+      } else {
+        value_index = 0; // reset to beginning of search string
+      }
+      if (value_index == static_cast<int>(search.size())) {
+        return true; // matched all characters in search string
+      }
+    }
+    return false;
   }
 
   // Get previous character in buffer. Returns -1 if there is none.
@@ -649,7 +683,7 @@ private:
       minibuffer.editor.insert(ch);
     }
     get_minibuffer_input(KeyBindings::MIN_CHAR, KeyBindings::MAX_CHAR);
-    std::string file_to_write = minibuffer.editor.stringify().first;
+    std::string file_to_write = minibuffer.editor.stringify();
     if (!file_to_write.empty()) {
       return write_file(file_to_write);
     } else {
@@ -675,8 +709,7 @@ private:
           return handle_save();
         } else if (c == 'n' || c == 'N') {
           return true;
-        } else if (c == 'c' || c == 'C'
-                   || KeyBindings::is_cancel(c)) {
+        } else if (c == 'c' || c == 'C' || KeyBindings::is_cancel(c)) {
           set_message("Canceled", "Canceled");
           return false;
         } else {
@@ -757,10 +790,12 @@ private:
   // Render the minibuffer at the bottom.
   void render_minibuffer() {
     reset_bar(bottom_bar);
-    auto [data, position] = minibuffer.editor.stringify();
-    render_row(minibuffer, data, 0, position, 1, true);
+    std::string data = minibuffer.editor.stringify();
+    int old_column = minibuffer.editor.get_column();
+    render_row(minibuffer, 1, old_column, true);
     wattroff(bottom_bar, A_REVERSE);
-    if (position == -1) {
+    minibuffer.editor.move_to_column(old_column); // restore position
+    if (minibuffer.editor.is_at_end()) {
       waddch(bottom_bar, ' '|A_NORMAL);
     }
   }
@@ -771,22 +806,26 @@ private:
     werase(canvas);
     rebase();
 
-    auto [data, position] = editbuffer.editor.stringify();
-    int row = baseline;
-    percentage = position == -1 ? 100 : position * 100 / data.size();
-    for (std::size_t i = find_baseline(data); i < data.size(); ++i) {
-      int x [[maybe_unused]], y;
-      getyx(canvas, y, x);
-      i = render_row(editbuffer, data, i, position, row, highlight_cursor);
-      ++row;
-      if (y == getmaxy(canvas) - 1) {
-        break;
+    // save current position
+    int old_row = editbuffer.editor.get_row();
+    int old_column = editbuffer.editor.get_column();
+    percentage =
+      100LL * editbuffer.editor.get_index() / editbuffer.editor.size();
+
+    // display as many rows as fit on the canvas, starting at baseline
+    for (int row = baseline; row < baseline + getmaxy(canvas); ++row) {
+      goto_line(row); // move to start of target row
+      if (editbuffer.editor.get_row() == row) { // guard against end
+        render_row(editbuffer, old_row, old_column, highlight_cursor);
       }
     }
 
-    // We're at the end of the buffer. This only matters if end =
-    // position.
-    if (highlight_cursor && position == -1) {
+    // restore previous position
+    goto_line(old_row);
+    editbuffer.editor.move_to_column(old_column);
+
+    if (highlight_cursor && editbuffer.editor.is_at_end()) {
+      // add highlighted cursor at the end of the buffer
       waddch(canvas, ' '|A_STANDOUT);
     }
   }
@@ -834,22 +873,25 @@ private:
     }
   }
 
-  // Render an entire row in the window. Returns the index of the last
-  // character in the row.
-  std::size_t render_row(Buffer &buffer, const std::string &data,
-                         std::size_t index, int position, int row,
-                         bool highlight_cursor) {
+  // Render the current buffer row in the window.
+  void render_row(Buffer &buffer, int cursor_row, int cursor_column,
+                  bool highlight_cursor) {
     int init_x, init_y;
     getyx(buffer.window, init_y, init_x); // initial location
-    index += render_current_row_prefix(buffer, row, data, index);
-    for (; index < data.size(); ++index) {
-      char c = data[index];
+    render_current_row_prefix(buffer, cursor_row, cursor_column);
+    for (int current_row = buffer.editor.get_row();
+         !buffer.editor.is_at_end()
+           && buffer.editor.get_row() == current_row;
+         buffer.editor.forward()) {
+      char c = buffer.editor.data_at_cursor();
       // The display character is either ' ' (if it's a newline) or
       // the char. The display character is what gets highlighted if
       // the current position is at that point.
       char display = (c == '\n' || c == '\r') ? ' ' : c;
       bool highlight = false;
-      if (highlight_cursor && static_cast<int>(index) == position) {
+      if (highlight_cursor
+          && buffer.editor.get_row() == cursor_row
+          && buffer.editor.get_column() == cursor_column) {
         highlight = true;
       }
 
@@ -858,60 +900,40 @@ private:
       if (c == '\n' && x == getmaxx(buffer.window) - 1 && y == init_y) {
         // Newline (edge case, newline at end of line)
         display_char(buffer, display, highlight);
-        return index;
       } else if (c == '\n' && x < getmaxx(buffer.window) - 1) {
         // Newline (common case)
         display_char(buffer, display, highlight);
         waddch(buffer.window, '\n');
-        return index;
       } else if (display_width(x, c) >= getmaxx(buffer.window) - x) {
         // Character goes off window
         display_char(buffer, display, highlight);
         wmove(buffer.window, init_y, getmaxx(buffer.window) - 1);
         waddch(buffer.window, buffer.right_overflow_marker);
-        // skip to end of line
-        for (; index < data.size() && data[index] != '\n'; ++index);
-        return index;
+        break;
       } else {
         // Show a regular character (common case)
         display_char(buffer, display, highlight);
       }
     }
-    return index; // hit end of buffer
   }
 
-  // Render the start of a row if it is the current row. Returns the
-  // column offset to skip to.
-  std::size_t render_current_row_prefix(Buffer &buffer, int row,
-                                        const std::string &data,
-                                        std::size_t index) {
-    if (row == buffer.editor.get_row()) {
+  // Render the start of a row if it is the current row. Moves the
+  // buffer to the first character to be displayed.
+  void render_current_row_prefix(Buffer &buffer, int cursor_row,
+                                 int cursor_column) {
+    if (cursor_row == buffer.editor.get_row()) {
       // Show prefix
       std::string &prefix = buffer.get_prefix();
       for (std::size_t i = 0; i < prefix.size(); ++i) {
         display_char(buffer, prefix[i], false);
       }
       // Handle showing subset of current line if it is too long
-      buffer.recompute_view_column(*this, data, index);
+      buffer.recompute_view_column(*this, cursor_row, cursor_column);
       if (buffer.view_column != 0) {
         // not showing line start - add marker
         display_char(buffer, buffer.left_overflow_marker, false);
       }
-      return buffer.view_column; // skip to view column
     }
-    return 0;
-  }
-
-  // Compute the position in the string of the baseline row.
-  std::size_t find_baseline(const std::string &data) {
-    int row = 1;
-    std::size_t position = 0;
-    for (; position < data.size() && row < baseline; ++position) {
-      if (data[position] == '\n') {
-        ++row;
-      }
-    }
-    return position;
   }
 
   // Move the baseline by half the window if the cursor is offscreen.
@@ -919,7 +941,8 @@ private:
   void rebase() {
     if (editbuffer.editor.get_row() < baseline
         || editbuffer.editor.get_row() >= baseline + getmaxy(canvas)) {
-      baseline = editbuffer.editor.get_row() - getmaxy(canvas) / 2;
+      baseline =
+        std::max(1, editbuffer.editor.get_row() - getmaxy(canvas) / 2);
       wclear(canvas); // required for some terminals
     }
     if (editbuffer.editor.get_row() != cursor_row) {
@@ -954,7 +977,7 @@ private:
   // Write the contents of the buffer to the file.
   bool write_file(const std::string &file_to_write) {
     std::ofstream output(file_to_write);
-    auto [text, ignored] = editbuffer.editor.stringify();
+    std::string text = editbuffer.editor.stringify();
     if (output << text) {
       filename = file_to_write;
       status = "saved";

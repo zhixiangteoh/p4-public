@@ -1,4 +1,4 @@
-# Public autograder tests for EECS 280 Project 4: Web
+# Public autograder tests for EECS 280 Project 4: Editor
 
 # Compiler and flags.  These will be inherited by recursive calls to Make.
 export CXX ?= g++
@@ -40,6 +40,13 @@ endif
 
 
 # Default target runs full public autograder
+test: Editor_public_test.exe line.exe
+	./Editor_public_test.exe
+	./line.exe < line_test1.in > line_test1.out
+	diff -qB line_test1.out line_test1.out.correct
+	./line.exe < line_test2.in > line_test2.out
+	diff -qB line_test2.out line_test2.out.correct
+
 line.exe: line.cpp Editor.cpp
 	$(CXX) $(CXXFLAGS) $^ -o $@
 
@@ -51,6 +58,6 @@ femto.exe: femto.cpp Editor.cpp
 
 e0.exe: e0.cpp Editor.cpp
 	$(CXX) $(CXXFLAGS) $^ -o $@ -lcurses
-	
+
 clean:
 	rm -vrf *.o *.exe *.gch *.dSYM *.stackdump *.out
