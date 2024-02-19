@@ -7,8 +7,12 @@
 #include "List.hpp"
 
 class Editor {
-  using TextBuffer = List<char>;//std::list<char>;
-  using Iterator = List<char>::Iterator;//std::list<char>::iterator;
+  using TextBuffer = List<char>;
+  using Iterator = List<char>::Iterator;
+
+
+  //using TextBuffer = std::list<char>;
+  //using Iterator = std::list<char>::iterator;
 
 public:
   //EFFECTS: Creates a new editor with an empty text buffer, with the
@@ -40,11 +44,10 @@ public:
 
   //MODIFIES: *this
   //EFFECTS:  Deletes the character from the buffer that is
-  //          immediately before the cursor and updates the current
-  //          row and column. Does nothing if the cursor is at the
-  //          start of the buffer. Returns true if a character was
+  //          at cursor. Does nothing if the cursor is at the
+  //          end of the buffer. Returns true if a character was
   //          removed, or false if not (i.e. if the cursor was at the
-  //          start of the buffer).
+  //          end of the buffer).
   bool remove();
 
   //MODIFIES: *this
