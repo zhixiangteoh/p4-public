@@ -249,7 +249,8 @@ private:
 ```
 
 We use `TextBuffer` as a *type alias* for either `List<char>`, or
-`std::list<char>` (your choice), representing a doubly-linked list of
+`std::list<char>` (your choice - although we recommend that you use the 
+`std::list<char>` implementation), representing a doubly-linked list of
 characters. We also use two iterators `start_sentinel` and 
 `end_sentinel` to mark the first and the last nodes in the linked list. 
 The following list contains the text ``spaces``:
@@ -333,8 +334,14 @@ style), so this should be fast. Specifically, we only need to
 recalculate the column when we delete a newline character or move left
 from the beginning of one line to the end of the previous line.
 
+
 Efficiently implement the interface functions for manipulating editors
 given in the definition of the ``Editor`` class in ``Editor.hpp``.
+<div class="primer-spec-callout info" markdown="1">
+**Pro-tip:** It will help to understand the functions you are writing
+and how some of them can help you implement other functions within
+the Editor class.
+</div>
 
 ## Testing the Editor
 
