@@ -27,7 +27,7 @@ to other terminal editors such as
 Set up your visual debugger and version control, then submit to the autograder.
 
 ### Visual debugger
-During setup, name your project `p4-editor`. Use this starter files link: `https://github.com/saquibrazak/p4-public/blob/main/p4-editor.tar.gz`
+During setup, name your project `p4-editor`. Use this starter files link: `https://eecs280staff.github.io/p4-editor/starter-files.tar.gz`
 
 | [VS Code](https://eecs280staff.github.io/tutorials/setup_vscode.html)| [Visual Studio](https://eecs280staff.github.io/tutorials/setup_visualstudio.html) | [Xcode](https://eecs280staff.github.io/tutorials/setup_xcode.html) |
 
@@ -241,6 +241,7 @@ private:
   Iterator cursor;         // current position within the list
   int row;                 // current row
   int column;              // current column
+  int index;               // current index
   Iterator start_sentinel; // sentinel node at the start of the list
   Iterator end_sentinel;   // sentinel node at the end of the list
   // ... public interface not shown
@@ -273,13 +274,13 @@ along with the cursor:
 
 <img src="img/dll2.png" width="800px"/>
 
-Edits in a text buffer take place to the left of the cursor. If we
-press the `backspace` key in the previous picture, it will remove the
-character to the left of the cursor:
+Deletions in a text buffer take place at the cursor. If we
+delete a character in the previous picture, it will remove the
+character at the cursor:
 
 <img src="img/dll3_full.png" width="700px"/>
 
-Insertions also happen to the left of the cursor. If we next typed the
+Insertions happen to the left of the cursor. If we next typed the
 `i` key, that character would be entered in to the left of the
 cursor.
 
@@ -292,7 +293,7 @@ possible for the `cursor` member variable to point to the same node
 that `end_sentinel` points to. Starting from the buffer above, we can
 see what that looks like from the editor's point of view:
 
-<img src="img/space3.png" width="550px"/>
+<img src="img/space3_full.png" width="550px"/>
 
 As a doubly-linked list, this final buffer looks like this:
 
