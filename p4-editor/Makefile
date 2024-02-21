@@ -62,3 +62,27 @@ e0.exe: e0.cpp Editor.cpp
 
 clean:
 	rm -vrf *.o *.exe *.gch *.dSYM *.stackdump *.out
+
+EXECUTABLE := p4editor
+REMOTE_PATH := eecs280w24_$(EXECUTABLE)_sync
+sync2caen:
+ifeq ($(UNIQNAME), youruniqname)
+	@echo Edit UNIQNAME variable in Makefile.
+	@exit 1;
+endif
+	# Synchronize local files into target directory on CAEN
+	rsync \
+      -av \
+      --delete \
+      --exclude '*.o' \
+      --exclude '$(EXECUTABLE)' \
+      --exclude '$(EXECUTABLE)_debug' \
+      --exclude '$(EXECUTABLE)_profile' \
+      --exclude '.git*' \
+      --exclude '.vs*' \
+      --exclude '*.code-workspace' \
+      --filter=":- .gitignore" \
+      "."/ \
+      "$(UNIQNAME)@login.engin.umich.edu:'$(REMOTE_PATH)/'"
+	echo "Files synced to CAEN at ~/$(REMOTE_PATH)/"
+

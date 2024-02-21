@@ -98,15 +98,13 @@ class Editor {
     //           end of the buffer).
     bool remove() {
         // assert(cursor != start_sentinel);
-        if (is_at_end()) {
+        if (is_at_start()) {
             return false;
         }
 
-        assert(cursor != buffer.end());
-        if (*cursor == '\n') {
-            column = compute_column();
+        if (!backward()) {
+            return false;
         }
-
         cursor = buffer.erase(cursor);
         return true;
     }
@@ -125,7 +123,7 @@ class Editor {
     //           newline character that ends the row, or the end of the
     //           buffer if the row is the last one in the buffer).
     void move_to_row_end() {
-        while (*cursor != '\n') {
+        while (*cursor != '\n' && !is_at_end()) {
             forward();
         }
     }
@@ -136,7 +134,7 @@ class Editor {
     //           many columns.
     void move_to_column(int new_column) {
         assert(new_column >= 0);
-        while (*cursor != '\n' && column < new_column) {
+        while (*cursor != '\n' && !is_at_end() && column < new_column) {
             forward();
         }
         while (column > new_column) {
@@ -180,7 +178,9 @@ class Editor {
         }
         int top_col = column;
         move_to_row_end();
-        forward();
+        if (!forward()) {
+            return true;
+        }
         column = compute_column();
         move_to_column(top_col);
         return true;
