@@ -31,13 +31,14 @@ ifdef DEBUG
 endif
 
 # "Default" recipes to build .exe and .o files.
-%.exe :
+%.exe:
 	$(LD) $(LDFLAGS) $^ -o $@
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) $< -c -o $@
 
-
+List_tests.exe: List_tests.cpp List.hpp
+	$(CXX) $(CXXFLAGS) $< -o $@
 
 # Default target runs full public autograder
 test: Editor_public_test.exe line.exe
@@ -50,7 +51,7 @@ test: Editor_public_test.exe line.exe
 line.exe: line.cpp Editor.cpp
 	$(CXX) $(CXXFLAGS) $^ -o $@
 
-Editor_public_test.exe: Editor.cpp Editor_public_test.cpp
+Editor_public_tests.exe: Editor.cpp Editor_public_tests.cpp
 	$(CXX) $(CXXFLAGS) $^ -o $@
 
 femto.exe: femto.cpp Editor.cpp
